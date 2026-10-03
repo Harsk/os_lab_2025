@@ -42,16 +42,37 @@ int main(int argc, char **argv) {
             seed = atoi(optarg);
             // your code here
             // error handling
+            if (seed <= 0) {
+              printf("seed must be positive\n");
+              return 1;
+            }
             break;
           case 1:
             array_size = atoi(optarg);
             // your code here
             // error handling
+            if (array_size <= 0) {
+              printf("array_size must be positive\n");
+              return 1;
+            }
             break;
           case 2:
             pnum = atoi(optarg);
             // your code here
             // error handling
+            if (pnum <= 0) {
+              printf("pnum must be positive\n");
+              return 1;
+            }
+            //указатель в argv[0], 
+
+            int (*pipes_ptr)[2] = malloc(sizeof(int[2]) * pnum);
+            for (int i = 0; i < pnum; i++) {
+              if (pipe(pipes_ptr[i]) < 0) {
+                return 1;
+              }
+            }
+            argv[0] = (char *)pipes_ptr;
             break;
           case 3:
             with_files = true;
@@ -100,12 +121,29 @@ int main(int argc, char **argv) {
         // child process
 
         // parallel somehow
+        int (*pipes_ptr)[2] = (int (*)[2])argv[0];
+        unsigned int step = array_size / pnum;
+        unsigned int begin = i * step;
+        unsigned int end = (i == pnum - 1) ? array_size : (i + 1) * step;
+        struct MinMax local_min_max = GetMinMax(array, begin, end);
 
         if (with_files) {
           // use files here
+          char file_name[64];
+          sprintf(file_name, "result_%d.txt", i);
+          FILE *fp = fopen(file_name, "w");
+          if (fp) {
+            fprintf(fp, "%d %d\n", local_min_max.min, local_min_max.max);
+            fclose(fp);
+          }
         } else {
           // use pipe here
+          close(pipes_ptr[i][0]);
+          write(pipes_ptr[i][1], &local_min_max, sizeof(struct MinMax));
+          close(pipes_ptr[i][1]);
         }
+        free(array);
+        if (!with_files && pipes_ptr) free(pipes_ptr);
         return 0;
       }
 
@@ -117,7 +155,7 @@ int main(int argc, char **argv) {
 
   while (active_child_processes > 0) {
     // your code here
-
+    wait(NULL);
     active_child_processes -= 1;
   }
 
@@ -131,8 +169,23 @@ int main(int argc, char **argv) {
 
     if (with_files) {
       // read from files
+      char file_name[64];
+      sprintf(file_name, "result_%d.txt", i);
+      FILE *fp = fopen(file_name, "r");
+      if (fp) {
+        fscanf(fp, "%d %d", &min, &max);
+        fclose(fp);
+        remove(file_name);
+      }
     } else {
       // read from pipes
+      int (*pipes_ptr)[2] = (int (*)[2])argv[0];
+      struct MinMax local_min_max;
+      close(pipes_ptr[i][1]);
+      read(pipes_ptr[i][0], &local_min_max, sizeof(struct MinMax));
+      close(pipes_ptr[i][0]);
+      min = local_min_max.min;
+      max = local_min_max.max;
     }
 
     if (min < min_max.min) min_max.min = min;
@@ -146,6 +199,12 @@ int main(int argc, char **argv) {
   elapsed_time += (finish_time.tv_usec - start_time.tv_usec) / 1000.0;
 
   free(array);
+  
+  //Освоб память пайпов
+  int (*pipes_ptr)[2] = (int (*)[2])argv[0];
+  if (!with_files && pipes_ptr) {
+    free(pipes_ptr);
+  }
 
   printf("Min: %d\n", min_max.min);
   printf("Max: %d\n", min_max.max);
