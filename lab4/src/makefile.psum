@@ -1,0 +1,21 @@
+CC = gcc
+CFLAGS = -Wall -Wextra -O2 -pthread
+
+all: psum
+
+sum.o: sum.c sum.h
+	$(CC) $(CFLAGS) -c sum.c
+
+utils.o: utils.c utils.h
+	$(CC) $(CFLAGS) -c utils.c
+
+libsum.a: sum.o
+	ar rcs $@ $^
+
+psum: parallel_sum.c libsum.a utils.o
+	$(CC) $(CFLAGS) parallel_sum.c utils.o -L. -lsum -o $@
+
+clean:
+	rm -f *.o *.a psum
+
+.PHONY: all clean

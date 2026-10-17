@@ -51,3 +51,9 @@ int showit(p) char *p;
     exit(1);
   }
 }
+
+	// Адреса main и showit лежат ниже etext (код).
+	// cptr как переменная лежит в районе edata (инициализированные данные).
+	// buffer1 между edata и end (BSS).
+	// Память от malloc выше end (куча).
+	// i и buffer2 на стеке, там самые большие адреса.
